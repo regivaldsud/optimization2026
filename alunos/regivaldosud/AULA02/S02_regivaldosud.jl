@@ -44,6 +44,32 @@ function summarize_run(label, f, x_star, traj)
     println("  iterations = ", length(traj) - 1)
 end
 
+function backtracking_line_search_unconstrained(f, grad, x, dx; alpha = 0.4, beta = 0.5)
+    t = 1.0
+    fx = f(x)
+    gx = grad(x)
+    while f(x .+ t .* dx) > fx + alpha * t * dot(gx, dx)
+        t *= beta
+    end
+    return t
+end
+
+function gradient_descent_armijo(f, grad, x0; alpha = 0.4, beta = 0.5, tol = 1e-8, maxiter = 10_000)
+    x = copy(x0)
+    trajectory = [copy(x)]
+    for _ in 1:maxiter
+        g = grad(x)
+        if norm(g) <= tol
+            return x, trajectory
+        end
+        dx = -g
+        t = backtracking_line_search_unconstrained(f, grad, x, dx; alpha = alpha, beta = beta)
+        x = x .+ t .* dx
+        push!(trajectory, copy(x))
+    end
+    return x, trajectory
+end
+
 function gradient_descent_fixed(grad, x0; step = 0.1, tol = 1e-8, maxiter = 10_000)
     x = copy(x0)
     trajectory = [copy(x)]
@@ -218,8 +244,14 @@ function run_quartic_problem()
     end
 
     x0 = [0.0, 0.0]
-    res_optim = optimize(f_quartic, grad_quartic!, x0, BFGS())
-    res_nlsolve = nlsolve(fonc_quartic!, x0)
+    res_optim = optimize(
+        f_quartic,
+        grad_quartic!,
+        x0,
+        BFGS(),
+        Optim.Options(g_tol = 1e-12, x_abstol = 1e-12, f_abstol = 1e-12, iterations = 10_000)
+    )
+    res_nlsolve = nlsolve(fonc_quartic!, x0; xtol = 1e-12, ftol = 1e-12, iterations = 10_000)
 
     println("Optim minimizer = ", Optim.minimizer(res_optim))
     println("Optim minimum   = ", Optim.minimum(res_optim))
@@ -256,7 +288,7 @@ function run_quadratic_methods()
     grad1(x) = [2 * (x[1] - 3), 2 * (x[2] - 2)]
     hess1(x) = [2.0 0.0; 0.0 2.0]
     x01 = [1.0, 1.0]
-    x_gd1, traj_gd1 = gradient_descent_fixed(grad1, x01; step = 0.5)
+    x_gd1, traj_gd1 = gradient_descent_armijo(f1, grad1, x01)
     x_nt1, traj_nt1 = newton_fixed(grad1, hess1, x01)
     summarize_run("f(x) = (x1 - 3)^2 + (x2 - 2)^2 with gradient descent", f1, x_gd1, traj_gd1)
     summarize_run("f(x) = (x1 - 3)^2 + (x2 - 2)^2 with Newton", f1, x_nt1, traj_nt1)
@@ -265,7 +297,7 @@ function run_quadratic_methods()
     grad2(x) = [20 * (x[1] - 3), 4 * (x[2] - 2)]
     hess2(x) = [20.0 0.0; 0.0 4.0]
     x02 = [1.0, 1.0]
-    x_gd2, traj_gd2 = gradient_descent_fixed(grad2, x02; step = 0.05)
+    x_gd2, traj_gd2 = gradient_descent_armijo(f2, grad2, x02)
     x_nt2, traj_nt2 = newton_fixed(grad2, hess2, x02)
     summarize_run("f(x) = 10(x1 - 3)^2 + 2(x2 - 2)^2 with gradient descent", f2, x_gd2, traj_gd2)
     summarize_run("f(x) = 10(x1 - 3)^2 + 2(x2 - 2)^2 with Newton", f2, x_nt2, traj_nt2)
@@ -274,7 +306,7 @@ function run_quadratic_methods()
     grad3(x) = [2 * x[1], 2 * x[2]]
     hess3(x) = [2.0 0.0; 0.0 2.0]
     x03 = [-2.0, 2.0]
-    x_gd3, traj_gd3 = gradient_descent_fixed(grad3, x03; step = 0.5)
+    x_gd3, traj_gd3 = gradient_descent_armijo(f3, grad3, x03)
     x_nt3, traj_nt3 = newton_fixed(grad3, hess3, x03)
     summarize_run("f(x) = x1^2 + x2^2 with gradient descent", f3, x_gd3, traj_gd3)
     summarize_run("f(x) = x1^2 + x2^2 with Newton", f3, x_nt3, traj_nt3)
@@ -283,7 +315,7 @@ function run_quadratic_methods()
     grad4(x) = [2 * x[1], 200 * x[2]]
     hess4(x) = [2.0 0.0; 0.0 200.0]
     x04 = [-2.0, 2.0]
-    x_gd4, traj_gd4 = gradient_descent_fixed(grad4, x04; step = 0.005)
+    x_gd4, traj_gd4 = gradient_descent_armijo(f4, grad4, x04)
     x_nt4, traj_nt4 = newton_fixed(grad4, hess4, x04)
     summarize_run("f(x) = x1^2 + 100x2^2 with gradient descent", f4, x_gd4, traj_gd4)
     summarize_run("f(x) = x1^2 + 100x2^2 with Newton", f4, x_nt4, traj_nt4)
@@ -292,7 +324,7 @@ function run_quadratic_methods()
     grad_change(v) = [2 * v[1], 2 * v[2]]
     hess_change(v) = [2.0 0.0; 0.0 2.0]
     v0 = [-2.0, 20.0]
-    v_gd, traj_v_gd = gradient_descent_fixed(grad_change, v0; step = 0.5)
+    v_gd, traj_v_gd = gradient_descent_armijo(g_change, grad_change, v0)
     v_nt, traj_v_nt = newton_fixed(grad_change, hess_change, v0)
 
     println("After the change x2 = y2 / 10:")
@@ -446,6 +478,7 @@ function run_cstr_lp()
     set_silent(model)
 
     @variable(model, xmin[i] <= x[i = 1:nx, k = 0:N] <= xmax[i])
+    @variable(model, y[i = 1:nx, k = 0:N])
     @variable(model, umin[j] <= u[j = 1:nu, k = 0:N-1] <= umax[j])
     @variable(model, z[1:2, 0:N] >= 0)
 
@@ -455,10 +488,14 @@ function run_cstr_lp()
         x[i, k + 1] == sum(A[i, j] * x[j, k] for j in 1:nx) + sum(B[i, j] * u[j, k] for j in 1:nu)
     )
 
-    @constraint(model, [k in 0:N], -z[1, k] <= x[1, k])
-    @constraint(model, [k in 0:N],  x[1, k] <= z[1, k])
-    @constraint(model, [k in 0:N], -z[2, k] <= x[3, k])
-    @constraint(model, [k in 0:N],  x[3, k] <= z[2, k])
+    @constraint(model, [i in 1:nx, k in 0:N],
+        y[i, k] == sum(C[i, j] * x[j, k] for j in 1:nx)
+    )
+
+    @constraint(model, [k in 0:N], -z[1, k] <= y[1, k])
+    @constraint(model, [k in 0:N],  y[1, k] <= z[1, k])
+    @constraint(model, [k in 0:N], -z[2, k] <= y[3, k])
+    @constraint(model, [k in 0:N],  y[3, k] <= z[2, k])
 
     @objective(model, Min, sum(z[1, k] + z[2, k] for k in 0:N))
 
@@ -468,23 +505,26 @@ function run_cstr_lp()
     println("objective value    = ", objective_value(model))
 
     X = [value(x[i, k]) for i in 1:nx, k in 0:N]
+    Y = [value(y[i, k]) for i in 1:nx, k in 0:N]
     U = [value(u[j, k]) for j in 1:nu, k in 0:N-1]
 
     println("Optimal states X = ")
     println(X)
+    println("Optimal outputs Y = ")
+    println(Y)
     println("Optimal inputs U = ")
     println(U)
 
     t_state = collect(0:N)
     t_input = collect(0:N-1)
 
-    p_y = plot(t_state, X[1, :];
+    p_y = plot(t_state, Y[1, :];
         marker = :circle,
         label = "y1 = c - cs",
         xlabel = "k",
         ylabel = "controlled variables",
         title = "Controlled variables")
-    plot!(p_y, t_state, X[3, :]; marker = :square, label = "y3 = h - hs")
+    plot!(p_y, t_state, Y[3, :]; marker = :square, label = "y3 = h - hs")
     hline!(p_y, [0.0]; linestyle = :dash, color = :black, label = "setpoint")
 
     p_u = plot(t_input, U[1, :];
@@ -501,7 +541,7 @@ function run_cstr_lp()
 
     display(plot(p_y, p_u; layout = (2, 1), size = (850, 750)))
 
-    return model, X, U, A, B, C
+    return model, X, Y, U, A, B, C
 end
 
 # ------------------------------------------------------------
