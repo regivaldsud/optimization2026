@@ -3,9 +3,9 @@
 # Resolucao em Julia
 # ============================================================
 
-import Pkg
-Pkg.activate(@__DIR__; io = devnull)
-Pkg.instantiate(; io = devnull)
+# Uncomment once if needed:
+# using Pkg
+# Pkg.add(["Optim", "NLsolve", "Plots", "JuMP", "HiGHS"])
 
 # Avoid GUI plotting issues when running from terminal/script mode.
 ENV["GKSwstype"] = "100"
