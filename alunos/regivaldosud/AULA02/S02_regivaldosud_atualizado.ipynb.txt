@@ -5,8 +5,8 @@
       "id": "cell-001",
       "metadata": {},
       "source": [
-        "# Nome: Regivaldo Araujo dos Santos\n",
-        "# Matricula: 2250841"
+        "# Nome: REGIVALDO ARAÚJO DOS SANTOS\n",
+        "# Matrícula: 2250841"
       ]
     },
     {
